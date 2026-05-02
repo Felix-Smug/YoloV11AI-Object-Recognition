@@ -99,7 +99,7 @@ while not keyboard.is_pressed('`'):
 
             #remove these two lines for just aim assist
             #if abs(dx) < 3 and abs(dy) < 3:
-            #    click()
+                #click()
            
     frame_count += 1
     if frame_count >= 60:

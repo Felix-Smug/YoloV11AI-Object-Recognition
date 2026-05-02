@@ -11,9 +11,9 @@ import serial
 import threading
 from queue import Queue
 
-model = YOLO("C:/Users/Smugg/Documents/Github Repos/YoloV11AI/ValorantAI/60epocs.engine")
+model = YOLO("C:/Users/Smugg/Documents/Github Repos/YoloV11AI/ValorantAI/30epochs.engine")
 
-arduino = serial.Serial('COM5', 115200, timeout=1)
+arduino = serial.Serial('COM3', 115200, timeout=1)
 
 if torch.cuda.is_available():
     print(f"Using GPU with TensorRT: {torch.cuda.get_device_name(0)}")
@@ -97,7 +97,8 @@ while not keyboard.is_pressed('`'):
 
                 dx = box_center_x - region_size / 2
                 dy = box_center_y - region_size / 2
-                distance = math.sqrt(dx**2 + dy**2)
+                #distance = math.sqrt(dx**2 + dy**2)
+                distance = dx*dx + dy*dy 
 
                 if distance < min_distance:
                     min_distance = distance
@@ -107,13 +108,13 @@ while not keyboard.is_pressed('`'):
             dx, dy = closest_target
 
             if abs(dx) > 20:
-                dx *= 1.1
+                dx *= 1.0
             else:
-                dx *= 1.1
+                dx *= 1.0
             if abs(dy) > 20:
-                dy *= 1.1
+                dy *= 1.0
             else:
-                dy *= 1.1
+                dy *= 1.0
 
             send_mouse_move(dx, dy)
 

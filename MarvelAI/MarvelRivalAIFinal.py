@@ -8,22 +8,24 @@ import math
 import torch
 import bettercam
 import serial
+import threading
+from queue import Queue
 
-model = YOLO("C:/Users/Smugg/Documents/Github Repos/YoloV11AI/OverwatchAI/ow2epoch60.engine")
+model = YOLO("C:/Users/Smugg/Documents/Github Repos/YoloV11AI/MarvelAI/Marvel.engine")
 
-arduino = serial.Serial('COM3', 9600, timeout=1)
+arduino = serial.Serial('COM5', 115200, timeout=1)
 
 if torch.cuda.is_available():
     print(f"Using GPU with TensorRT: {torch.cuda.get_device_name(0)}")
 else:
     print("CUDA not available")
 
-class_names = ['EnemyHead']
+class_names = ['Friendly', 'enemy']
 
 camera = bettercam.create(output_color='BGR')
 
 screen_w, screen_h = pyautogui.size()
-region_size = 130
+region_size = 100
 region_left = screen_w // 2 - region_size // 2
 region_top = screen_h // 2 - region_size // 2
 
@@ -35,15 +37,29 @@ last_toggle_time = 0
 
 frame_count = 0
 start_time = time.time()
+last_fire_time = 0
+fire_cooldown = 0.2 
+
+serial_queue = Queue()
+
+def serial_worker():
+    while True:
+        command = serial_queue.get()
+        if command is None:
+            break
+        arduino.write(command.encode())
+
+serial_thread = threading.Thread(target=serial_worker, daemon=True)
+serial_thread.start()
 
 def send_mouse_move(dx, dy):
     dx = max(min(int(dx), 127), -127)
     dy = max(min(int(dy), 127), -127)
     command = f"MOVE {dx} {dy}\n"
-    arduino.write(command.encode())
+    serial_queue.put(command)
 
 def send_fire():
-    arduino.write(b"FIRE\n")
+    serial_queue.put("FIRE\n")
 
 while not keyboard.is_pressed('`'):
     
@@ -61,8 +77,7 @@ while not keyboard.is_pressed('`'):
 
     results = model.predict(
         source=frame_np,
-        conf=0.2,
-        imgsz = 416,
+        conf=0.35,
         verbose=False,
         device=0
     )
@@ -75,37 +90,37 @@ while not keyboard.is_pressed('`'):
             cls = int(box.cls[0])
             label = model.names[cls]
 
-            if label == "EnemyHead":
+            if label == "enemy_head":
                 x1, y1, x2, y2 = box.xyxy[0].cpu().numpy()
                 box_center_x = (x1 + x2) / 2
                 box_center_y = (y1 + y2) / 2
 
                 dx = box_center_x - region_size / 2
                 dy = box_center_y - region_size / 2
-                distance = math.sqrt(dx**2 + dy**2)
+                #distance = math.sqrt(dx**2 + dy**2)
+                distance = dx*dx + dy*dy 
 
                 if distance < min_distance:
                     min_distance = distance
                     closest_target = (dx, dy)
 
-        if closest_target:
+        if closest_target:              
             dx, dy = closest_target
 
-            if abs(dx) > 30:
-                dx *= 1.2
+            if abs(dx) > 20:
+                dx *= 1.0
             else:
-                dx *= 1.2
+                dx *= 1.0
             if abs(dy) > 20:
-                dy *= 1.2
+                dy *= 1.0
             else:
-                dy *= 1.2
+                dy *= 1.0
 
             send_mouse_move(dx, dy)
 
-            #remove these two lines for just aim assist
-            #if abs(dx) < 3 and abs(dy) < 3:
-            #    send_fire()
-           
+            if abs(dx) < 3 and abs(dy) < 3:
+                send_fire()
+
     frame_count += 1
     if frame_count >= 60:
         end_time = time.time()
@@ -113,5 +128,8 @@ while not keyboard.is_pressed('`'):
         print(f"FPS: {fps:.2f}")
         frame_count = 0
         start_time = time.time()
+
+serial_queue.put(None)
+serial_thread.join()
 
 print("Stopped")
